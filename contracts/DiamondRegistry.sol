@@ -18,8 +18,8 @@ contract DiamondRegistry is AccessControl, EIP712 {
     );
     bytes32 private constant REGISTRATION_TYPEHASH = keccak256(
         "Registration(address lab,DiamondClaim claim,uint256 nonce,uint64 deadline)"
-        "Details(string color,string clarity,string cut,string treatment)"
         "DiamondClaim(string inscriptionId,bytes32 reportHash,uint8 origin,uint32 caratMilli,Details details)"
+        "Details(string color,string clarity,string cut,string treatment)"
     );
 
     enum Origin { Natural, LabGrownCVD, LabGrownHPHT }
