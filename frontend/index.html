@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Verify a diamond's laboratory claim and custody history on Ethereum." />
+    <title>Facet Ledger — Diamond Verification</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Newsreader:opsz,wght@6..72,500;6..72,600&amp;display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Facet Ledger home">
+        <span class="brand-mark" aria-hidden="true">◇</span>
+        <span>Facet Ledger</span>
+      </a>
+      <div class="network-status" id="network-status">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span id="network-label">Connecting…</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <p class="eyebrow">Public registry</p>
+        <h1>Verify the story<br />behind the stone.</h1>
+        <p class="hero-copy">
+          Check the issuing laboratory, origin claim, current custodian, and complete on-chain history. No wallet required.
+        </p>
+      </section>
+
+      <section class="search-card" aria-labelledby="search-title">
+        <div class="section-heading">
+          <div>
+            <p class="step-label">01 / LOOKUP</p>
+            <h2 id="search-title">Find a diamond</h2>
+          </div>
+          <p>Use the laboratory address and the laser inscription shown on the stone.</p>
+        </div>
+
+        <form id="verify-form">
+          <label>
+            <span>Issuing laboratory address</span>
+            <input id="lab-address" name="lab" autocomplete="off" placeholder="0x…" required />
+          </label>
+          <label>
+            <span>Laser inscription</span>
+            <input id="inscription-id" name="inscription" autocomplete="off" placeholder="GIA-2467891" maxlength="64" required />
+          </label>
+          <button id="verify-button" type="submit">
+            <span>Verify record</span>
+            <span aria-hidden="true">→</span>
+          </button>
+        </form>
+        <p class="form-message" id="form-message" role="status" aria-live="polite"></p>
+      </section>
+
+      <section id="result" class="result" hidden aria-live="polite">
+        <div class="result-header">
+          <div>
+            <p class="step-label">02 / VERIFIED RECORD</p>
+            <h2 id="result-inscription"></h2>
+          </div>
+          <span class="status-badge" id="record-status"></span>
+        </div>
+
+        <div class="facts-grid">
+          <article><span>Origin</span><strong id="record-origin"></strong></article>
+          <article><span>Carat weight</span><strong id="record-carat"></strong></article>
+          <article><span>Registered</span><strong id="record-date"></strong></article>
+          <article><span>Record ID</span><strong id="record-id"></strong></article>
+        </div>
+
+        <div class="record-grid">
+          <article class="detail-panel">
+            <p class="panel-label">CERTIFICATE DETAILS</p>
+            <dl id="certificate-details"></dl>
+            <p class="commitment" id="metadata-check"></p>
+          </article>
+          <article class="detail-panel">
+            <p class="panel-label">PARTIES</p>
+            <dl>
+              <div><dt>Issuing lab</dt><dd class="address" id="record-lab"></dd></div>
+              <div><dt>Current custodian</dt><dd class="address" id="record-custodian"></dd></div>
+              <div><dt>Report hash</dt><dd class="address" id="record-report"></dd></div>
+            </dl>
+          </article>
+        </div>
+
+        <article class="timeline-panel">
+          <div class="section-heading compact">
+            <div>
+              <p class="step-label">03 / AUDIT TRAIL</p>
+              <h2>Chain of custody</h2>
+            </div>
+            <p id="freshness"></p>
+          </div>
+          <ol class="timeline" id="timeline"></ol>
+        </article>
+      </section>
+
+      <section id="configuration-error" class="configuration-error" hidden>
+        <p class="step-label">CONFIGURATION NEEDED</p>
+        <h2>The registry connection is not ready.</h2>
+        <p id="configuration-message"></p>
+      </section>
+    </main>
+
+    <footer>
+      <span>Facet Ledger</span>
+      <span>Blockchain records document claims; they do not replace physical inspection.</span>
+    </footer>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

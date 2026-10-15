@@ -732,7 +732,7 @@ if (id > 0n) {
 | 35 | Register the same claim directly and by signature (two labs) | Records match in every field except lab and inscription key |
 | 36 | `registrationDigest` vs ethers `TypedDataEncoder.hash` | Identical |
 
-Screenshot each result in Remix for the report. For stronger testing, port these to Hardhat and include a gas report and a Slither scan.
+These behaviors are now covered by the Hardhat suite in `test/DiamondRegistry.test.js` (41 passing tests). A gas report and Slither scan remain future verification work.
 
 ## 13. Security Notes and Limitations
 
@@ -760,7 +760,7 @@ Screenshot each result in Remix for the report. For stronger testing, port these
 
 ## 15. Resume Summary
 
-> Built a role-based diamond provenance registry on Ethereum (Solidity, OpenZeppelin, ethers.js, MetaMask) with lab-only registration, EIP-712 signed attestations with replay and expiry protection, immutable origin records, consent-based two-step custody transfers, and a quarantine/revocation lifecycle. Deployed on Sepolia and validated with a 36-case test suite covering access control, signature forgery, and fraud scenarios.
+> Built and locally tested a role-based diamond provenance registry using Solidity, OpenZeppelin, Hardhat, and ethers.js. The 41-test suite covers lab-only registration, EIP-712 signed attestations, replay and expiry protection, immutable provenance, consent-based custody transfers, access control, and quarantine/revocation. Deployment manifests, ABI export, local demo seeding, and the read-only public verification page are implemented. Wallet-based lab, custody, and admin panels and the Sepolia deployment remain.
 
 ## 16. Suggested Repository Structure
 

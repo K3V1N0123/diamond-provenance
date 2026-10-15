@@ -1,15 +1,25 @@
 {
   "type": "module",
   "scripts": {
-    "test": "hardhat test"
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "node": "hardhat node",
+    "deploy:local": "hardhat run scripts/deploy.js --network localhost",
+    "deploy:sepolia": "hardhat run scripts/deploy.js --network sepolia",
+    "seed:local": "hardhat run --no-compile scripts/seed-local.js --network localhost",
+    "export:abi": "node scripts/export-abi.js",
+    "frontend:prepare": "node scripts/prepare-frontend.js",
+    "frontend:dev": "vite frontend",
+    "frontend:build": "vite build frontend",
+    "frontend:preview": "vite preview frontend"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^4.0.3",
     "@nomicfoundation/hardhat-toolbox-mocha-ethers": "^4.0.0",
     "@openzeppelin/contracts": "^5.6.1",
     "chai": "^5.2.0",
-    "ethers": "^6.15.0",
+    "ethers": "^6.17.0",
     "hardhat": "^3.19.0",
-    "solc": "^0.8.26"
+    "vite": "^8.3.4"
   }
 }

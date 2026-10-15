@@ -1,0 +1,8 @@
+{
+  "network": "localhost",
+  "chainId": "31337",
+  "rpcUrl": "http://127.0.0.1:8545",
+  "contractAddress": "0x0000000000000000000000000000000000000000",
+  "deploymentBlock": 1,
+  "abi": []
+}
