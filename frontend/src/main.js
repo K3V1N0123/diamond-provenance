@@ -50,6 +50,7 @@ const elements = Object.fromEntries([
   "record-origin", "record-carat", "record-date", "record-id", "certificate-details",
   "metadata-check", "record-lab", "record-custodian", "record-report", "freshness",
   "timeline", "configuration-error", "configuration-message", "connect-wallet",
+  "wallet-message",
   "wallet-summary", "direct-registration-form", "registration-fields", "report-file",
   "report-hash", "registration-inscription", "registration-origin", "registration-carat",
   "registration-color", "registration-clarity", "registration-cut",
@@ -92,6 +93,12 @@ function normalizeInscription(value) {
 function setMessage(message, tone = "") {
   elements["form-message"].textContent = message;
   elements["form-message"].dataset.tone = tone;
+}
+
+function setWalletMessage(message, tone = "") {
+  elements["wallet-message"].textContent = message;
+  elements["wallet-message"].dataset.tone = tone;
+  elements["wallet-message"].hidden = !message;
 }
 
 function setRegistrationMessage(message, tone = "") {
@@ -235,6 +242,7 @@ async function connectWallet() {
   walletIsAdmin = isAdmin;
 
   elements["connect-wallet"].textContent = shortenAddress(walletAddress);
+  setWalletMessage(`Connected as ${walletAddress}`, "success");
   elements["wallet-summary"].textContent = isLab && isCustodian
     ? `${shortenAddress(walletAddress)} is authorized as a lab and custodian.`
     : `${shortenAddress(walletAddress)} needs both LAB_ROLE and CUSTODIAN_ROLE.`;
@@ -484,6 +492,13 @@ async function initialize() {
     elements["network-label"].textContent = `${config.network} · block ${latestBlock}`;
     elements["network-status"].dataset.connected = "true";
     elements["connect-wallet"].disabled = false;
+    if (!window.ethereum) {
+      elements["connect-wallet"].textContent = "MetaMask not found";
+      setWalletMessage(
+        "MetaMask is not available in this browser. Open this URL in Chrome, Firefox, or Edge with the MetaMask extension enabled.",
+        "error",
+      );
+    }
 
     const parameters = new URLSearchParams(window.location.search);
     if (parameters.has("lab")) elements["lab-address"].value = parameters.get("lab");
@@ -501,11 +516,13 @@ async function initialize() {
 
 elements["connect-wallet"].addEventListener("click", async () => {
   elements["connect-wallet"].disabled = true;
+  setWalletMessage("Waiting for MetaMask…");
   setRegistrationMessage("Waiting for wallet connection…");
   try {
     await connectWallet();
   } catch (error) {
     const message = readableError(error);
+    setWalletMessage(message, "error");
     setRegistrationMessage(message, "error");
     setRelayerMessage(message, "error");
     setCustodyMessage(message, "error");
