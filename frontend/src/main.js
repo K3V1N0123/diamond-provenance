@@ -4,9 +4,12 @@ import {
   JsonRpcProvider,
   TypedDataEncoder,
   getAddress,
+  hexlify,
   id,
   isAddress,
   keccak256,
+  randomBytes,
+  verifyTypedData,
 } from "ethers";
 import "./styles.css";
 
@@ -14,13 +17,29 @@ const ORIGINS = ["Natural", "Lab-grown CVD", "Lab-grown HPHT"];
 const STATUSES = ["Active", "Quarantined", "Revoked"];
 const LAB_ROLE = id("LAB_ROLE");
 const CUSTODIAN_ROLE = id("CUSTODIAN_ROLE");
-const DETAILS_TYPES = {
+const REGISTRATION_TYPES = {
+  Registration: [
+    { name: "lab", type: "address" },
+    { name: "claim", type: "DiamondClaim" },
+    { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint64" },
+  ],
+  DiamondClaim: [
+    { name: "inscriptionId", type: "string" },
+    { name: "reportHash", type: "bytes32" },
+    { name: "origin", type: "uint8" },
+    { name: "caratMilli", type: "uint32" },
+    { name: "details", type: "Details" },
+  ],
   Details: [
     { name: "color", type: "string" },
     { name: "clarity", type: "string" },
     { name: "cut", type: "string" },
     { name: "treatment", type: "string" },
   ],
+};
+const DETAILS_TYPES = {
+  Details: REGISTRATION_TYPES.Details,
 };
 
 const elements = Object.fromEntries([
@@ -33,6 +52,9 @@ const elements = Object.fromEntries([
   "report-hash", "registration-inscription", "registration-origin", "registration-carat",
   "registration-color", "registration-clarity", "registration-cut",
   "registration-treatment", "registration-message", "register-button",
+  "sign-attestation-button", "relayer-form", "relayer-fields", "attestation-file",
+  "attestation-summary", "attestation-lab", "attestation-inscription",
+  "attestation-deadline", "relayer-message", "relay-button",
 ].map((id) => [id, document.getElementById(id)]));
 
 let config;
@@ -40,6 +62,8 @@ let provider;
 let registry;
 let walletRegistry;
 let walletAddress;
+let walletSigner;
+let loadedAttestation;
 
 function shortenAddress(address) {
   return `${address.slice(0, 8)}…${address.slice(-6)}`;
@@ -59,12 +83,94 @@ function setRegistrationMessage(message, tone = "") {
   elements["registration-message"].dataset.tone = tone;
 }
 
+function setRelayerMessage(message, tone = "") {
+  elements["relayer-message"].textContent = message;
+  elements["relayer-message"].dataset.tone = tone;
+}
+
 function readableError(error) {
   return error.shortMessage ?? error.reason ?? error.info?.error?.message ?? error.message;
 }
 
 async function hashReport(file) {
   return keccak256(new Uint8Array(await file.arrayBuffer()));
+}
+
+function registrationValue(lab, input, nonce, deadline) {
+  return {
+    lab,
+    claim: {
+      inscriptionId: input.inscriptionId,
+      reportHash: input.reportHash,
+      origin: input.origin,
+      caratMilli: input.caratMilli,
+      details: {
+        color: input.color,
+        clarity: input.clarity,
+        cut: input.cut,
+        treatment: input.treatment,
+      },
+    },
+    nonce,
+    deadline,
+  };
+}
+
+async function eip712Domain(contract) {
+  const domain = await contract.eip712Domain();
+  return {
+    name: domain.name,
+    version: domain.version,
+    chainId: domain.chainId,
+    verifyingContract: domain.verifyingContract,
+  };
+}
+
+async function registrationInputFromForm() {
+  const inscriptionId = normalizeInscription(elements["registration-inscription"].value);
+  const caratText = elements["registration-carat"].value.trim();
+  const [reportFile] = elements["report-file"].files;
+  elements["registration-inscription"].value = inscriptionId;
+
+  if (!/^[A-Z0-9-]{1,64}$/.test(inscriptionId)) {
+    throw new Error("The inscription may contain only A–Z, 0–9, and hyphens.");
+  }
+  if (!/^\d+(\.\d{1,3})?$/.test(caratText)) {
+    throw new Error("Carat weight must use at most three decimal places.");
+  }
+  const caratMilli = Math.round(Number(caratText) * 1000);
+  if (caratMilli < 1 || caratMilli > 1_000_000) {
+    throw new Error("Carat weight must be between 0.001 and 1000.");
+  }
+  if (!reportFile) throw new Error("Choose the grading report file.");
+
+  const details = {
+    color: elements["registration-color"].value.trim(),
+    clarity: elements["registration-clarity"].value.trim(),
+    cut: elements["registration-cut"].value.trim(),
+    treatment: elements["registration-treatment"].value.trim(),
+  };
+  for (const [field, value] of Object.entries(details)) {
+    if (!value) throw new Error(`Enter the diamond ${field}.`);
+  }
+
+  return {
+    inscriptionId,
+    reportHash: await hashReport(reportFile),
+    origin: Number(elements["registration-origin"].value),
+    caratMilli,
+    ...details,
+  };
+}
+
+function downloadAttestation(attestation) {
+  const blob = new Blob([JSON.stringify(attestation, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `attestation-${attestation.input.inscriptionId}.json`;
+  link.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 async function connectWallet() {
@@ -81,9 +187,9 @@ async function connectWallet() {
     );
   }
 
-  const signer = await walletProvider.getSigner();
-  walletAddress = await signer.getAddress();
-  walletRegistry = new Contract(config.contractAddress, config.abi, signer);
+  walletSigner = await walletProvider.getSigner();
+  walletAddress = await walletSigner.getAddress();
+  walletRegistry = new Contract(config.contractAddress, config.abi, walletSigner);
   const [isLab, isCustodian] = await Promise.all([
     walletRegistry.hasRole(LAB_ROLE, walletAddress),
     walletRegistry.hasRole(CUSTODIAN_ROLE, walletAddress),
@@ -94,12 +200,95 @@ async function connectWallet() {
     ? `${shortenAddress(walletAddress)} is authorized as a lab and custodian.`
     : `${shortenAddress(walletAddress)} needs both LAB_ROLE and CUSTODIAN_ROLE.`;
   elements["registration-fields"].disabled = !(isLab && isCustodian);
+  elements["relayer-fields"].disabled = false;
+  setRelayerMessage("Wallet ready. Load a signed attestation to validate it locally.", "success");
   setRegistrationMessage(
     isLab && isCustodian
       ? "Wallet ready. The registration transaction will require gas."
       : "This wallet is not authorized to register diamonds.",
     isLab && isCustodian ? "success" : "error",
   );
+}
+
+async function validateAttestation(attestation) {
+  if (!attestation || typeof attestation !== "object" || !attestation.input) {
+    throw new Error("This is not a Facet Ledger attestation file.");
+  }
+  if (String(attestation.chainId) !== String(config.chainId)) {
+    throw new Error(`This attestation is for chain ${attestation.chainId}, not chain ${config.chainId}.`);
+  }
+  if (!isAddress(attestation.registry)
+      || getAddress(attestation.registry) !== getAddress(config.contractAddress)) {
+    throw new Error("This attestation was signed for a different registry contract.");
+  }
+  if (!isAddress(attestation.lab)) throw new Error("The attestation has an invalid laboratory address.");
+
+  const input = attestation.input;
+  if (!/^[A-Z0-9-]{1,64}$/.test(input.inscriptionId ?? "")) {
+    throw new Error("The attestation has an invalid inscription.");
+  }
+  if (!/^0x[0-9a-fA-F]{64}$/.test(input.reportHash ?? "")) {
+    throw new Error("The attestation has an invalid report hash.");
+  }
+  if (!Number.isInteger(input.origin) || input.origin < 0 || input.origin > 2) {
+    throw new Error("The attestation has an invalid origin.");
+  }
+  if (!Number.isInteger(input.caratMilli)
+      || input.caratMilli < 1 || input.caratMilli > 1_000_000) {
+    throw new Error("The attestation has an invalid carat weight.");
+  }
+  for (const field of ["color", "clarity", "cut", "treatment"]) {
+    if (typeof input[field] !== "string") {
+      throw new Error(`The attestation has an invalid ${field} field.`);
+    }
+  }
+
+  let nonce;
+  let deadline;
+  try {
+    nonce = BigInt(attestation.nonce);
+    deadline = BigInt(attestation.deadline);
+  } catch {
+    throw new Error("The attestation nonce or deadline is invalid.");
+  }
+  if (nonce < 0n || deadline < 0n || deadline > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new Error("The attestation nonce or deadline is out of range.");
+  }
+  if (typeof attestation.signature !== "string") {
+    throw new Error("The attestation does not contain a signature.");
+  }
+
+  const lab = getAddress(attestation.lab);
+  const domain = await eip712Domain(registry);
+  const recovered = verifyTypedData(
+    domain,
+    REGISTRATION_TYPES,
+    registrationValue(lab, input, nonce, deadline),
+    attestation.signature,
+  );
+  if (getAddress(recovered) !== lab) {
+    throw new Error("The signature does not match the laboratory address.");
+  }
+
+  const latestBlock = await provider.getBlock("latest");
+  if (deadline <= BigInt(latestBlock.timestamp)) throw new Error("This attestation has expired.");
+  const [used, isLab, isCustodian] = await Promise.all([
+    registry.nonceUsed(lab, nonce),
+    registry.hasRole(LAB_ROLE, lab),
+    registry.hasRole(CUSTODIAN_ROLE, lab),
+  ]);
+  if (used) throw new Error("This attestation nonce has already been used or cancelled.");
+  if (!isLab || !isCustodian) {
+    throw new Error("The signer is no longer authorized as both a lab and custodian.");
+  }
+
+  return {
+    ...attestation,
+    lab,
+    input,
+    nonce,
+    deadline,
+  };
 }
 
 function addDefinition(list, term, value) {
@@ -263,7 +452,9 @@ elements["connect-wallet"].addEventListener("click", async () => {
   try {
     await connectWallet();
   } catch (error) {
-    setRegistrationMessage(readableError(error), "error");
+    const message = readableError(error);
+    setRegistrationMessage(message, "error");
+    setRelayerMessage(message, "error");
   } finally {
     elements["connect-wallet"].disabled = false;
   }
@@ -289,6 +480,48 @@ elements["registration-inscription"].addEventListener("blur", (event) => {
   event.target.value = normalizeInscription(event.target.value);
 });
 
+elements["sign-attestation-button"].addEventListener("click", async () => {
+  if (!walletRegistry || !walletSigner || !walletAddress) {
+    setRegistrationMessage("Connect an authorized laboratory wallet first.", "error");
+    return;
+  }
+
+  elements["sign-attestation-button"].disabled = true;
+  elements["register-button"].disabled = true;
+  try {
+    setRegistrationMessage("Hashing the report and preparing the typed claim…");
+    const input = await registrationInputFromForm();
+    const domain = await eip712Domain(walletRegistry);
+    const nonce = BigInt(hexlify(randomBytes(16)));
+    const latestBlock = await provider.getBlock("latest");
+    const deadline = BigInt(latestBlock.timestamp + 7 * 24 * 60 * 60);
+    const value = registrationValue(walletAddress, input, nonce, deadline);
+
+    setRegistrationMessage("Review and sign the structured claim in your wallet. This costs no gas.");
+    const signature = await walletSigner.signTypedData(domain, REGISTRATION_TYPES, value);
+    const attestation = {
+      schemaVersion: 1,
+      chainId: domain.chainId.toString(),
+      registry: domain.verifyingContract,
+      lab: walletAddress,
+      input,
+      nonce: nonce.toString(),
+      deadline: deadline.toString(),
+      signature,
+    };
+    downloadAttestation(attestation);
+    setRegistrationMessage(
+      "Signed attestation downloaded. It expires in seven days and can be given to a relayer.",
+      "success",
+    );
+  } catch (error) {
+    setRegistrationMessage(readableError(error), "error");
+  } finally {
+    elements["sign-attestation-button"].disabled = false;
+    elements["register-button"].disabled = false;
+  }
+});
+
 elements["direct-registration-form"].addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!walletRegistry || !walletAddress) {
@@ -296,43 +529,11 @@ elements["direct-registration-form"].addEventListener("submit", async (event) =>
     return;
   }
 
-  const inscriptionId = normalizeInscription(elements["registration-inscription"].value);
-  const caratText = elements["registration-carat"].value.trim();
-  const [reportFile] = elements["report-file"].files;
-  elements["registration-inscription"].value = inscriptionId;
-
-  if (!/^[A-Z0-9-]{1,64}$/.test(inscriptionId)) {
-    setRegistrationMessage("The inscription may contain only A–Z, 0–9, and hyphens.", "error");
-    return;
-  }
-  if (!/^\d+(\.\d{1,3})?$/.test(caratText)) {
-    setRegistrationMessage("Carat weight must use at most three decimal places.", "error");
-    return;
-  }
-  const caratMilli = Math.round(Number(caratText) * 1000);
-  if (caratMilli < 1 || caratMilli > 1_000_000) {
-    setRegistrationMessage("Carat weight must be between 0.001 and 1000.", "error");
-    return;
-  }
-  if (!reportFile) {
-    setRegistrationMessage("Choose the grading report file.", "error");
-    return;
-  }
-
   elements["register-button"].disabled = true;
+  elements["sign-attestation-button"].disabled = true;
   try {
     setRegistrationMessage("Hashing the report locally…");
-    const reportHash = await hashReport(reportFile);
-    const claim = {
-      inscriptionId,
-      reportHash,
-      origin: Number(elements["registration-origin"].value),
-      caratMilli,
-      color: elements["registration-color"].value.trim(),
-      clarity: elements["registration-clarity"].value.trim(),
-      cut: elements["registration-cut"].value.trim(),
-      treatment: elements["registration-treatment"].value.trim(),
-    };
+    const claim = await registrationInputFromForm();
 
     setRegistrationMessage("Confirm the registration transaction in your wallet…");
     const transaction = await walletRegistry.registerDiamond(claim);
@@ -340,13 +541,74 @@ elements["direct-registration-form"].addEventListener("submit", async (event) =>
     await transaction.wait();
 
     elements["lab-address"].value = walletAddress;
-    elements["inscription-id"].value = inscriptionId;
-    await verifyDiamond(walletAddress, inscriptionId);
+    elements["inscription-id"].value = claim.inscriptionId;
+    await verifyDiamond(walletAddress, claim.inscriptionId);
     setRegistrationMessage("Diamond registered and verified from the blockchain.", "success");
   } catch (error) {
     setRegistrationMessage(readableError(error), "error");
   } finally {
     elements["register-button"].disabled = false;
+    elements["sign-attestation-button"].disabled = false;
+  }
+});
+
+elements["attestation-file"].addEventListener("change", async (event) => {
+  loadedAttestation = undefined;
+  elements["relay-button"].disabled = true;
+  elements["attestation-summary"].hidden = true;
+  const [file] = event.target.files;
+  if (!file) {
+    setRelayerMessage("Choose an attestation JSON file.");
+    return;
+  }
+
+  try {
+    setRelayerMessage("Checking the signature, deadline, nonce, and laboratory roles…");
+    const parsed = JSON.parse(await file.text());
+    loadedAttestation = await validateAttestation(parsed);
+    elements["attestation-lab"].textContent = loadedAttestation.lab;
+    elements["attestation-inscription"].textContent = loadedAttestation.input.inscriptionId;
+    elements["attestation-deadline"].textContent = new Date(
+      Number(loadedAttestation.deadline) * 1000,
+    ).toLocaleString();
+    elements["attestation-summary"].hidden = false;
+    elements["relay-button"].disabled = false;
+    setRelayerMessage("Signature is valid and the attestation is ready to submit.", "success");
+  } catch (error) {
+    setRelayerMessage(readableError(error), "error");
+  }
+});
+
+elements["relayer-form"].addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!walletRegistry || !walletAddress || !loadedAttestation) {
+    setRelayerMessage("Connect a wallet and load a valid attestation first.", "error");
+    return;
+  }
+
+  elements["relay-button"].disabled = true;
+  try {
+    setRelayerMessage("Rechecking the attestation before submission…");
+    loadedAttestation = await validateAttestation(loadedAttestation);
+    setRelayerMessage("Confirm the relayer transaction in your wallet…");
+    const transaction = await walletRegistry.registerWithSignature(
+      loadedAttestation.lab,
+      loadedAttestation.input,
+      loadedAttestation.nonce,
+      loadedAttestation.deadline,
+      loadedAttestation.signature,
+    );
+    setRelayerMessage(`Transaction ${shortenAddress(transaction.hash)} submitted. Waiting for confirmation…`);
+    await transaction.wait();
+
+    elements["lab-address"].value = loadedAttestation.lab;
+    elements["inscription-id"].value = loadedAttestation.input.inscriptionId;
+    await verifyDiamond(loadedAttestation.lab, loadedAttestation.input.inscriptionId);
+    loadedAttestation = undefined;
+    setRelayerMessage("Attestation submitted and verified from the blockchain.", "success");
+  } catch (error) {
+    setRelayerMessage(readableError(error), "error");
+    elements["relay-button"].disabled = false;
   }
 });
 

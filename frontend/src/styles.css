@@ -103,7 +103,7 @@ h1 {
   line-height: 1.7;
 }
 
-.search-card, .lab-card, .detail-panel, .timeline-panel, .configuration-error {
+.search-card, .lab-card, .relayer-card, .detail-panel, .timeline-panel, .configuration-error {
   border: 1px solid var(--line);
   background: rgba(255, 255, 252, 0.88);
   box-shadow: 0 18px 55px rgba(23, 45, 36, 0.05);
@@ -111,6 +111,7 @@ h1 {
 
 .search-card { padding: clamp(24px, 5vw, 52px); }
 .lab-card { margin-top: 20px; padding: clamp(24px, 5vw, 52px); }
+.relayer-card { margin-top: 20px; padding: clamp(24px, 5vw, 52px); }
 
 .section-heading {
   display: flex;
@@ -156,6 +157,15 @@ fieldset:disabled { opacity: 0.55; }
 .wide-field { grid-column: span 2; }
 .registration-submit { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-top: 32px; }
 .registration-submit .form-message { flex: 1; margin: 0; }
+.button-group { display: flex; gap: 10px; }
+.button-group button { min-width: 175px; }
+.secondary-button { border: 1px solid var(--green); background: transparent; color: var(--green); }
+.secondary-button:hover { background: #edf7f2; }
+.relayer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+.attestation-summary { padding: 20px 24px; border: 1px solid var(--line); background: #f7f7f2; }
+.attestation-summary dl { margin: 0; }
+.attestation-summary dl > div:first-child { padding-top: 0; }
+.attestation-summary dl > div:last-child { padding-bottom: 0; border-bottom: 0; }
 
 button {
   display: flex;
@@ -241,7 +251,10 @@ footer {
   .verify-form { grid-template-columns: 1fr; }
   button { margin-top: 8px; }
   .registration-grid { grid-template-columns: 1fr 1fr; }
+  .relayer-grid { grid-template-columns: 1fr; }
   .wide-field { grid-column: span 2; }
+  .registration-submit { align-items: stretch; flex-direction: column; }
+  .button-group { justify-content: flex-end; }
   .facts-grid { grid-template-columns: 1fr 1fr; }
   .facts-grid article:nth-child(2) { border-right: 0; }
   .facts-grid article:nth-child(-n + 2) { border-bottom: 1px solid var(--line); }
@@ -256,6 +269,8 @@ footer {
   .registration-grid { grid-template-columns: 1fr; }
   .wide-field { grid-column: span 1; }
   .registration-submit { align-items: stretch; flex-direction: column; }
+  .button-group { flex-direction: column; }
+  .button-group button { width: 100%; }
   .facts-grid { grid-template-columns: 1fr; }
   .facts-grid article { border-right: 0; border-bottom: 1px solid var(--line); }
   .facts-grid article:last-child { border-bottom: 0; }

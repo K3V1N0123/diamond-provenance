@@ -1,6 +1,6 @@
 # Diamond Provenance Registry
 
-This repository contains the tested `DiamondRegistry` smart contract, repeatable deployment tooling, and a read-only public verification page. Wallet-based lab, custody, and admin panels and the public Sepolia deployment are still to be implemented.
+This repository contains the tested `DiamondRegistry` smart contract, repeatable deployment tooling, a public verification page, direct MetaMask registration, and signed EIP-712 registration through a relayer. Custody and admin panels and the public Sepolia deployment are still to be implemented.
 
 ## Install and test
 
@@ -53,6 +53,8 @@ The preparation step copies only public connection information and the ABI into 
 Public verification remains read-only and does not request a wallet. Enter the lab address and inscription to see the current record, committed certificate details, and event-based custody timeline.
 
 The lab workspace supports direct registration through MetaMask. Add the local network with RPC URL `http://127.0.0.1:8545` and chain ID `31337`, then import the private key for the local account granted `LAB_ROLE`. The report is hashed inside the browser; the file itself is never uploaded.
+
+The same lab can choose **Sign attestation** to download a JSON approval that expires after seven days. A different wallet can connect, load that file under **Submit an attestation**, and pay the registration gas. The page checks the signature, target chain and contract, deadline, nonce, and current lab roles before enabling submission.
 
 To create a sample diamond and one accepted custody transfer on the running local chain, use:
 

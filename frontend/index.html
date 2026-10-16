@@ -111,8 +111,51 @@
             </div>
             <div class="registration-submit">
               <p class="form-message" id="registration-message" role="status" aria-live="polite"></p>
-              <button id="register-button" type="submit">
-                <span>Register directly</span>
+              <div class="button-group">
+                <button class="secondary-button" id="sign-attestation-button" type="button">
+                  <span>Sign attestation</span>
+                  <span aria-hidden="true">↓</span>
+                </button>
+                <button id="register-button" type="submit">
+                  <span>Register directly</span>
+                  <span aria-hidden="true">→</span>
+                </button>
+              </div>
+            </div>
+          </fieldset>
+        </form>
+      </section>
+
+      <section class="relayer-card" aria-labelledby="relayer-title">
+        <div class="section-heading">
+          <div>
+            <p class="step-label">RELAYER WORKSPACE</p>
+            <h2 id="relayer-title">Submit an attestation</h2>
+          </div>
+          <p>Load a JSON file signed by a laboratory. Your wallet submits the transaction and pays its gas.</p>
+        </div>
+
+        <form id="relayer-form">
+          <fieldset id="relayer-fields" disabled>
+            <div class="relayer-grid">
+              <label>
+                <span>Signed attestation JSON</span>
+                <input id="attestation-file" type="file" accept="application/json,.json" required />
+              </label>
+              <article class="attestation-summary" id="attestation-summary" hidden>
+                <dl>
+                  <div><dt>Laboratory</dt><dd class="address" id="attestation-lab"></dd></div>
+                  <div><dt>Inscription</dt><dd id="attestation-inscription"></dd></div>
+                  <div><dt>Expires</dt><dd id="attestation-deadline"></dd></div>
+                </dl>
+              </article>
+            </div>
+            <div class="registration-submit">
+              <p class="form-message" id="relayer-message" role="status" aria-live="polite">
+                Connect a wallet to load and submit a signed attestation.
+              </p>
+              <button id="relay-button" type="submit" disabled>
+                <span>Submit and pay gas</span>
                 <span aria-hidden="true">→</span>
               </button>
             </div>
