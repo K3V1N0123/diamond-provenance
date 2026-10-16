@@ -1,14 +1,19 @@
 import {
+  BrowserProvider,
   Contract,
   JsonRpcProvider,
   TypedDataEncoder,
   getAddress,
+  id,
   isAddress,
+  keccak256,
 } from "ethers";
 import "./styles.css";
 
 const ORIGINS = ["Natural", "Lab-grown CVD", "Lab-grown HPHT"];
 const STATUSES = ["Active", "Quarantined", "Revoked"];
+const LAB_ROLE = id("LAB_ROLE");
+const CUSTODIAN_ROLE = id("CUSTODIAN_ROLE");
 const DETAILS_TYPES = {
   Details: [
     { name: "color", type: "string" },
@@ -23,12 +28,18 @@ const elements = Object.fromEntries([
   "inscription-id", "form-message", "result", "result-inscription", "record-status",
   "record-origin", "record-carat", "record-date", "record-id", "certificate-details",
   "metadata-check", "record-lab", "record-custodian", "record-report", "freshness",
-  "timeline", "configuration-error", "configuration-message",
+  "timeline", "configuration-error", "configuration-message", "connect-wallet",
+  "wallet-summary", "direct-registration-form", "registration-fields", "report-file",
+  "report-hash", "registration-inscription", "registration-origin", "registration-carat",
+  "registration-color", "registration-clarity", "registration-cut",
+  "registration-treatment", "registration-message", "register-button",
 ].map((id) => [id, document.getElementById(id)]));
 
 let config;
 let provider;
 let registry;
+let walletRegistry;
+let walletAddress;
 
 function shortenAddress(address) {
   return `${address.slice(0, 8)}…${address.slice(-6)}`;
@@ -41,6 +52,54 @@ function normalizeInscription(value) {
 function setMessage(message, tone = "") {
   elements["form-message"].textContent = message;
   elements["form-message"].dataset.tone = tone;
+}
+
+function setRegistrationMessage(message, tone = "") {
+  elements["registration-message"].textContent = message;
+  elements["registration-message"].dataset.tone = tone;
+}
+
+function readableError(error) {
+  return error.shortMessage ?? error.reason ?? error.info?.error?.message ?? error.message;
+}
+
+async function hashReport(file) {
+  return keccak256(new Uint8Array(await file.arrayBuffer()));
+}
+
+async function connectWallet() {
+  if (!window.ethereum) {
+    throw new Error("MetaMask or another injected Ethereum wallet was not found.");
+  }
+
+  const walletProvider = new BrowserProvider(window.ethereum);
+  await walletProvider.send("eth_requestAccounts", []);
+  const walletNetwork = await walletProvider.getNetwork();
+  if (walletNetwork.chainId.toString() !== config.chainId.toString()) {
+    throw new Error(
+      `Your wallet is on chain ${walletNetwork.chainId}. Switch it to chain ${config.chainId}.`,
+    );
+  }
+
+  const signer = await walletProvider.getSigner();
+  walletAddress = await signer.getAddress();
+  walletRegistry = new Contract(config.contractAddress, config.abi, signer);
+  const [isLab, isCustodian] = await Promise.all([
+    walletRegistry.hasRole(LAB_ROLE, walletAddress),
+    walletRegistry.hasRole(CUSTODIAN_ROLE, walletAddress),
+  ]);
+
+  elements["connect-wallet"].textContent = shortenAddress(walletAddress);
+  elements["wallet-summary"].textContent = isLab && isCustodian
+    ? `${shortenAddress(walletAddress)} is authorized as a lab and custodian.`
+    : `${shortenAddress(walletAddress)} needs both LAB_ROLE and CUSTODIAN_ROLE.`;
+  elements["registration-fields"].disabled = !(isLab && isCustodian);
+  setRegistrationMessage(
+    isLab && isCustodian
+      ? "Wallet ready. The registration transaction will require gas."
+      : "This wallet is not authorized to register diamonds.",
+    isLab && isCustodian ? "success" : "error",
+  );
 }
 
 function addDefinition(list, term, value) {
@@ -182,6 +241,7 @@ async function initialize() {
     const latestBlock = await provider.getBlockNumber();
     elements["network-label"].textContent = `${config.network} · block ${latestBlock}`;
     elements["network-status"].dataset.connected = "true";
+    elements["connect-wallet"].disabled = false;
 
     const parameters = new URLSearchParams(window.location.search);
     if (parameters.has("lab")) elements["lab-address"].value = parameters.get("lab");
@@ -193,8 +253,102 @@ async function initialize() {
     elements["configuration-error"].hidden = false;
     elements["configuration-message"].textContent = error.message;
     elements["verify-button"].disabled = true;
+    elements["connect-wallet"].disabled = true;
   }
 }
+
+elements["connect-wallet"].addEventListener("click", async () => {
+  elements["connect-wallet"].disabled = true;
+  setRegistrationMessage("Waiting for wallet connection…");
+  try {
+    await connectWallet();
+  } catch (error) {
+    setRegistrationMessage(readableError(error), "error");
+  } finally {
+    elements["connect-wallet"].disabled = false;
+  }
+});
+
+elements["report-file"].addEventListener("change", async (event) => {
+  const [file] = event.target.files;
+  if (!file) {
+    elements["report-hash"].textContent = "The file is hashed locally and is not uploaded.";
+    return;
+  }
+
+  try {
+    elements["report-hash"].textContent = "Calculating report fingerprint…";
+    const reportHash = await hashReport(file);
+    elements["report-hash"].textContent = `Report hash: ${reportHash}`;
+  } catch (error) {
+    elements["report-hash"].textContent = readableError(error);
+  }
+});
+
+elements["registration-inscription"].addEventListener("blur", (event) => {
+  event.target.value = normalizeInscription(event.target.value);
+});
+
+elements["direct-registration-form"].addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!walletRegistry || !walletAddress) {
+    setRegistrationMessage("Connect an authorized laboratory wallet first.", "error");
+    return;
+  }
+
+  const inscriptionId = normalizeInscription(elements["registration-inscription"].value);
+  const caratText = elements["registration-carat"].value.trim();
+  const [reportFile] = elements["report-file"].files;
+  elements["registration-inscription"].value = inscriptionId;
+
+  if (!/^[A-Z0-9-]{1,64}$/.test(inscriptionId)) {
+    setRegistrationMessage("The inscription may contain only A–Z, 0–9, and hyphens.", "error");
+    return;
+  }
+  if (!/^\d+(\.\d{1,3})?$/.test(caratText)) {
+    setRegistrationMessage("Carat weight must use at most three decimal places.", "error");
+    return;
+  }
+  const caratMilli = Math.round(Number(caratText) * 1000);
+  if (caratMilli < 1 || caratMilli > 1_000_000) {
+    setRegistrationMessage("Carat weight must be between 0.001 and 1000.", "error");
+    return;
+  }
+  if (!reportFile) {
+    setRegistrationMessage("Choose the grading report file.", "error");
+    return;
+  }
+
+  elements["register-button"].disabled = true;
+  try {
+    setRegistrationMessage("Hashing the report locally…");
+    const reportHash = await hashReport(reportFile);
+    const claim = {
+      inscriptionId,
+      reportHash,
+      origin: Number(elements["registration-origin"].value),
+      caratMilli,
+      color: elements["registration-color"].value.trim(),
+      clarity: elements["registration-clarity"].value.trim(),
+      cut: elements["registration-cut"].value.trim(),
+      treatment: elements["registration-treatment"].value.trim(),
+    };
+
+    setRegistrationMessage("Confirm the registration transaction in your wallet…");
+    const transaction = await walletRegistry.registerDiamond(claim);
+    setRegistrationMessage(`Transaction ${shortenAddress(transaction.hash)} submitted. Waiting for confirmation…`);
+    await transaction.wait();
+
+    elements["lab-address"].value = walletAddress;
+    elements["inscription-id"].value = inscriptionId;
+    await verifyDiamond(walletAddress, inscriptionId);
+    setRegistrationMessage("Diamond registered and verified from the blockchain.", "success");
+  } catch (error) {
+    setRegistrationMessage(readableError(error), "error");
+  } finally {
+    elements["register-button"].disabled = false;
+  }
+});
 
 elements["inscription-id"].addEventListener("blur", (event) => {
   event.target.value = normalizeInscription(event.target.value);
@@ -227,10 +381,15 @@ elements["verify-form"].addEventListener("submit", async (event) => {
     window.history.replaceState({}, "", url);
     setMessage("Record verified from the blockchain.", "success");
   } catch (error) {
-    setMessage(error.shortMessage ?? error.reason ?? error.message, "error");
+    setMessage(readableError(error), "error");
   } finally {
     elements["verify-button"].disabled = false;
   }
 });
+
+if (window.ethereum?.on) {
+  window.ethereum.on("accountsChanged", () => window.location.reload());
+  window.ethereum.on("chainChanged", () => window.location.reload());
+}
 
 initialize();

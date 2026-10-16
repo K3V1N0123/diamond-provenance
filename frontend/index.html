@@ -15,9 +15,12 @@
         <span class="brand-mark" aria-hidden="true">◇</span>
         <span>Facet Ledger</span>
       </a>
-      <div class="network-status" id="network-status">
-        <span class="status-dot" aria-hidden="true"></span>
-        <span id="network-label">Connecting…</span>
+      <div class="header-actions">
+        <div class="network-status" id="network-status">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span id="network-label">Connecting…</span>
+        </div>
+        <button class="wallet-button" id="connect-wallet" type="button" disabled>Connect wallet</button>
       </div>
     </header>
 
@@ -39,7 +42,7 @@
           <p>Use the laboratory address and the laser inscription shown on the stone.</p>
         </div>
 
-        <form id="verify-form">
+        <form class="verify-form" id="verify-form">
           <label>
             <span>Issuing laboratory address</span>
             <input id="lab-address" name="lab" autocomplete="off" placeholder="0x…" required />
@@ -54,6 +57,67 @@
           </button>
         </form>
         <p class="form-message" id="form-message" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="lab-card" id="lab-panel" aria-labelledby="lab-title">
+        <div class="section-heading">
+          <div>
+            <p class="step-label">LAB WORKSPACE</p>
+            <h2 id="lab-title">Register a diamond</h2>
+          </div>
+          <p id="wallet-summary">Connect an authorized laboratory wallet to register a certificate.</p>
+        </div>
+
+        <form id="direct-registration-form">
+          <fieldset id="registration-fields" disabled>
+            <div class="registration-grid">
+              <label class="wide-field">
+                <span>Grading report file</span>
+                <input id="report-file" type="file" required />
+                <small id="report-hash">The file is hashed locally and is not uploaded.</small>
+              </label>
+              <label>
+                <span>Laser inscription</span>
+                <input id="registration-inscription" maxlength="64" placeholder="GIA-2467891" required />
+              </label>
+              <label>
+                <span>Origin</span>
+                <select id="registration-origin" required>
+                  <option value="0">Natural</option>
+                  <option value="1">Lab-grown CVD</option>
+                  <option value="2">Lab-grown HPHT</option>
+                </select>
+              </label>
+              <label>
+                <span>Carat weight</span>
+                <input id="registration-carat" type="number" min="0.001" max="1000" step="0.001" placeholder="1.250" required />
+              </label>
+              <label>
+                <span>Color</span>
+                <input id="registration-color" placeholder="F" required />
+              </label>
+              <label>
+                <span>Clarity</span>
+                <input id="registration-clarity" placeholder="VS1" required />
+              </label>
+              <label>
+                <span>Cut</span>
+                <input id="registration-cut" placeholder="Excellent" required />
+              </label>
+              <label>
+                <span>Treatment</span>
+                <input id="registration-treatment" placeholder="None" required />
+              </label>
+            </div>
+            <div class="registration-submit">
+              <p class="form-message" id="registration-message" role="status" aria-live="polite"></p>
+              <button id="register-button" type="submit">
+                <span>Register directly</span>
+                <span aria-hidden="true">→</span>
+              </button>
+            </div>
+          </fieldset>
+        </form>
       </section>
 
       <section id="result" class="result" hidden aria-live="polite">
