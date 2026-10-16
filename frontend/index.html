@@ -163,6 +163,123 @@
         </form>
       </section>
 
+      <section class="custody-card" aria-labelledby="custody-title">
+        <div class="section-heading">
+          <div>
+            <p class="step-label">CUSTODY WORKSPACE</p>
+            <h2 id="custody-title">Transfer custody</h2>
+          </div>
+          <p>A transfer starts as a proposal. The receiving wallet must accept it before custody changes.</p>
+        </div>
+
+        <form class="custody-load-form" id="custody-load-form">
+          <fieldset id="custody-fields" disabled>
+            <label>
+              <span>Diamond record ID</span>
+              <input id="custody-record-id" type="number" min="1" step="1" placeholder="1" required />
+            </label>
+            <button id="load-custody-button" type="submit">
+              <span>Load custody</span>
+              <span aria-hidden="true">→</span>
+            </button>
+          </fieldset>
+        </form>
+
+        <div id="custody-record" hidden>
+          <div class="custody-summary">
+            <article><span>Status</span><strong id="custody-status"></strong></article>
+            <article><span>Current custodian</span><strong class="address" id="custody-current"></strong></article>
+            <article><span>Pending recipient</span><strong class="address" id="custody-pending"></strong></article>
+          </div>
+
+          <form class="proposal-form" id="proposal-form" hidden>
+            <label>
+              <span>New custodian address</span>
+              <input id="custody-recipient" placeholder="0x…" required />
+            </label>
+            <button id="propose-transfer-button" type="submit">
+              <span>Propose transfer</span>
+              <span aria-hidden="true">→</span>
+            </button>
+          </form>
+
+          <div class="custody-actions">
+            <button class="secondary-button" id="cancel-transfer-button" type="button" hidden>Cancel proposal</button>
+            <button class="secondary-button" id="reject-transfer-button" type="button" hidden>Reject proposal</button>
+            <button id="accept-transfer-button" type="button" hidden>Accept custody</button>
+          </div>
+        </div>
+        <p class="form-message" id="custody-message" role="status" aria-live="polite">
+          Connect a wallet to manage custody.
+        </p>
+      </section>
+
+      <section class="admin-card" aria-labelledby="admin-title">
+        <div class="section-heading">
+          <div>
+            <p class="step-label">ADMIN WORKSPACE</p>
+            <h2 id="admin-title">Manage registry</h2>
+          </div>
+          <p>Admins authorize operational wallets and respond to disputed or invalid records.</p>
+        </div>
+
+        <fieldset id="admin-fields" disabled>
+          <div class="admin-grid">
+            <article class="admin-panel">
+              <p class="panel-label">ROLE MANAGEMENT</p>
+              <form id="role-form">
+                <label>
+                  <span>Wallet address</span>
+                  <input id="role-address" placeholder="0x…" required />
+                </label>
+                <label>
+                  <span>Role</span>
+                  <select id="role-type">
+                    <option value="lab">Laboratory</option>
+                    <option value="custodian">Custodian</option>
+                  </select>
+                </label>
+                <div class="admin-actions">
+                  <button class="secondary-button" id="revoke-role-button" type="button">Revoke role</button>
+                  <button id="grant-role-button" type="submit">Grant role</button>
+                </div>
+              </form>
+              <p class="form-message" id="role-message" role="status" aria-live="polite"></p>
+            </article>
+
+            <article class="admin-panel">
+              <p class="panel-label">RECORD STATUS</p>
+              <form class="admin-record-form" id="admin-record-form">
+                <label>
+                  <span>Diamond record ID</span>
+                  <input id="admin-record-id" type="number" min="1" step="1" placeholder="1" required />
+                </label>
+                <button id="load-admin-record-button" type="submit">Load record</button>
+              </form>
+              <div id="admin-record-summary" hidden>
+                <dl>
+                  <div><dt>Status</dt><dd id="admin-record-status"></dd></div>
+                  <div><dt>Issuing lab</dt><dd class="address" id="admin-record-lab"></dd></div>
+                </dl>
+                <label>
+                  <span>Reason for status change</span>
+                  <input id="admin-reason" placeholder="Explain the decision" />
+                </label>
+                <div class="admin-actions">
+                  <button class="secondary-button" id="resolve-button" type="button" hidden>Resolve quarantine</button>
+                  <button class="danger-button" id="revoke-record-button" type="button" hidden>Revoke permanently</button>
+                  <button id="quarantine-button" type="button" hidden>Quarantine record</button>
+                </div>
+              </div>
+              <p class="form-message" id="admin-record-message" role="status" aria-live="polite"></p>
+            </article>
+          </div>
+        </fieldset>
+        <p class="form-message" id="admin-message" role="status" aria-live="polite">
+          Connect an administrator wallet to manage the registry.
+        </p>
+      </section>
+
       <section id="result" class="result" hidden aria-live="polite">
         <div class="result-header">
           <div>

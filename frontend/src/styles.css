@@ -103,7 +103,7 @@ h1 {
   line-height: 1.7;
 }
 
-.search-card, .lab-card, .relayer-card, .detail-panel, .timeline-panel, .configuration-error {
+.search-card, .lab-card, .relayer-card, .custody-card, .admin-card, .detail-panel, .timeline-panel, .configuration-error {
   border: 1px solid var(--line);
   background: rgba(255, 255, 252, 0.88);
   box-shadow: 0 18px 55px rgba(23, 45, 36, 0.05);
@@ -112,6 +112,8 @@ h1 {
 .search-card { padding: clamp(24px, 5vw, 52px); }
 .lab-card { margin-top: 20px; padding: clamp(24px, 5vw, 52px); }
 .relayer-card { margin-top: 20px; padding: clamp(24px, 5vw, 52px); }
+.custody-card { margin-top: 20px; padding: clamp(24px, 5vw, 52px); }
+.admin-card { margin-top: 20px; padding: clamp(24px, 5vw, 52px); }
 
 .section-heading {
   display: flex;
@@ -166,6 +168,25 @@ fieldset:disabled { opacity: 0.55; }
 .attestation-summary dl { margin: 0; }
 .attestation-summary dl > div:first-child { padding-top: 0; }
 .attestation-summary dl > div:last-child { padding-bottom: 0; border-bottom: 0; }
+.custody-load-form fieldset { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: end; }
+.custody-summary { display: grid; grid-template-columns: 0.7fr 1fr 1fr; margin-top: 32px; border: 1px solid var(--line); }
+.custody-summary article { min-width: 0; padding: 20px; border-right: 1px solid var(--line); }
+.custody-summary article:last-child { border-right: 0; }
+.custody-summary span { display: block; margin-bottom: 8px; color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; }
+.custody-summary strong { display: block; overflow-wrap: anywhere; }
+.proposal-form { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: end; margin-top: 24px; }
+.custody-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+.custody-actions:empty { display: none; }
+.admin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.admin-panel { padding: 28px; border: 1px solid var(--line); background: #f7f7f2; }
+.admin-panel form { display: grid; gap: 20px; margin-top: 22px; }
+.admin-record-form { grid-template-columns: 1fr auto; align-items: end; }
+.admin-record-form button { min-width: 135px; }
+.admin-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+.admin-actions button { min-width: 135px; }
+.danger-button { background: var(--red); }
+.danger-button:hover { background: #782f2a; }
+#admin-record-summary dl { margin-bottom: 22px; }
 
 button {
   display: flex;
@@ -252,6 +273,10 @@ footer {
   button { margin-top: 8px; }
   .registration-grid { grid-template-columns: 1fr 1fr; }
   .relayer-grid { grid-template-columns: 1fr; }
+  .admin-grid { grid-template-columns: 1fr; }
+  .custody-summary { grid-template-columns: 1fr; }
+  .custody-summary article { border-right: 0; border-bottom: 1px solid var(--line); }
+  .custody-summary article:last-child { border-bottom: 0; }
   .wide-field { grid-column: span 2; }
   .registration-submit { align-items: stretch; flex-direction: column; }
   .button-group { justify-content: flex-end; }
@@ -271,6 +296,10 @@ footer {
   .registration-submit { align-items: stretch; flex-direction: column; }
   .button-group { flex-direction: column; }
   .button-group button { width: 100%; }
+  .custody-load-form fieldset, .proposal-form { grid-template-columns: 1fr; }
+  .custody-actions { align-items: stretch; flex-direction: column; }
+  .admin-record-form { grid-template-columns: 1fr; }
+  .admin-actions { align-items: stretch; flex-direction: column; }
   .facts-grid { grid-template-columns: 1fr; }
   .facts-grid article { border-right: 0; border-bottom: 1px solid var(--line); }
   .facts-grid article:last-child { border-bottom: 0; }

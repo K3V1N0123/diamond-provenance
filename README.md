@@ -1,6 +1,6 @@
 # Diamond Provenance Registry
 
-This repository contains the tested `DiamondRegistry` smart contract, repeatable deployment tooling, a public verification page, direct MetaMask registration, and signed EIP-712 registration through a relayer. Custody and admin panels and the public Sepolia deployment are still to be implemented.
+This repository contains the tested `DiamondRegistry` smart contract, repeatable deployment tooling, a public verification page, direct MetaMask registration, signed EIP-712 registration through a relayer, consent-based custody transfers, and registry administration. The public Sepolia deployment is still to be completed.
 
 ## Install and test
 
@@ -55,6 +55,10 @@ Public verification remains read-only and does not request a wallet. Enter the l
 The lab workspace supports direct registration through MetaMask. Add the local network with RPC URL `http://127.0.0.1:8545` and chain ID `31337`, then import the private key for the local account granted `LAB_ROLE`. The report is hashed inside the browser; the file itself is never uploaded.
 
 The same lab can choose **Sign attestation** to download a JSON approval that expires after seven days. A different wallet can connect, load that file under **Submit an attestation**, and pay the registration gas. The page checks the signature, target chain and contract, deadline, nonce, and current lab roles before enabling submission.
+
+The custody workspace loads a diamond by its numeric record ID. The current custodian can propose or cancel a transfer, while the proposed recipient can accept or reject it. Custody changes only after acceptance, and both wallets must have `CUSTODIAN_ROLE` when the transfer is completed.
+
+The admin workspace is enabled only for a wallet with `DEFAULT_ADMIN_ROLE`. It grants or revokes laboratory and custodian roles, quarantines active records, restores quarantined records, and permanently revokes quarantined records. Every record status change requires a reason, which is preserved in the on-chain event history.
 
 To create a sample diamond and one accepted custody transfer on the running local chain, use:
 

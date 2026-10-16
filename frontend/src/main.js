@@ -3,6 +3,8 @@ import {
   Contract,
   JsonRpcProvider,
   TypedDataEncoder,
+  ZeroAddress,
+  ZeroHash,
   getAddress,
   hexlify,
   id,
@@ -55,6 +57,16 @@ const elements = Object.fromEntries([
   "sign-attestation-button", "relayer-form", "relayer-fields", "attestation-file",
   "attestation-summary", "attestation-lab", "attestation-inscription",
   "attestation-deadline", "relayer-message", "relay-button",
+  "custody-load-form", "custody-fields", "custody-record-id", "load-custody-button",
+  "custody-record", "custody-status", "custody-current", "custody-pending",
+  "proposal-form", "custody-recipient", "propose-transfer-button",
+  "cancel-transfer-button", "reject-transfer-button", "accept-transfer-button",
+  "custody-message",
+  "admin-fields", "admin-message", "role-form", "role-address", "role-type",
+  "grant-role-button", "revoke-role-button", "role-message", "admin-record-form",
+  "admin-record-id", "load-admin-record-button", "admin-record-summary",
+  "admin-record-status", "admin-record-lab", "admin-reason", "quarantine-button",
+  "resolve-button", "revoke-record-button", "admin-record-message",
 ].map((id) => [id, document.getElementById(id)]));
 
 let config;
@@ -64,6 +76,10 @@ let walletRegistry;
 let walletAddress;
 let walletSigner;
 let loadedAttestation;
+let loadedCustodyId;
+let walletIsCustodian = false;
+let walletIsAdmin = false;
+let loadedAdminRecordId;
 
 function shortenAddress(address) {
   return `${address.slice(0, 8)}…${address.slice(-6)}`;
@@ -86,6 +102,26 @@ function setRegistrationMessage(message, tone = "") {
 function setRelayerMessage(message, tone = "") {
   elements["relayer-message"].textContent = message;
   elements["relayer-message"].dataset.tone = tone;
+}
+
+function setCustodyMessage(message, tone = "") {
+  elements["custody-message"].textContent = message;
+  elements["custody-message"].dataset.tone = tone;
+}
+
+function setAdminMessage(message, tone = "") {
+  elements["admin-message"].textContent = message;
+  elements["admin-message"].dataset.tone = tone;
+}
+
+function setRoleMessage(message, tone = "") {
+  elements["role-message"].textContent = message;
+  elements["role-message"].dataset.tone = tone;
+}
+
+function setAdminRecordMessage(message, tone = "") {
+  elements["admin-record-message"].textContent = message;
+  elements["admin-record-message"].dataset.tone = tone;
 }
 
 function readableError(error) {
@@ -190,10 +226,13 @@ async function connectWallet() {
   walletSigner = await walletProvider.getSigner();
   walletAddress = await walletSigner.getAddress();
   walletRegistry = new Contract(config.contractAddress, config.abi, walletSigner);
-  const [isLab, isCustodian] = await Promise.all([
+  const [isLab, isCustodian, isAdmin] = await Promise.all([
     walletRegistry.hasRole(LAB_ROLE, walletAddress),
     walletRegistry.hasRole(CUSTODIAN_ROLE, walletAddress),
+    walletRegistry.hasRole(ZeroHash, walletAddress),
   ]);
+  walletIsCustodian = isCustodian;
+  walletIsAdmin = isAdmin;
 
   elements["connect-wallet"].textContent = shortenAddress(walletAddress);
   elements["wallet-summary"].textContent = isLab && isCustodian
@@ -201,7 +240,21 @@ async function connectWallet() {
     : `${shortenAddress(walletAddress)} needs both LAB_ROLE and CUSTODIAN_ROLE.`;
   elements["registration-fields"].disabled = !(isLab && isCustodian);
   elements["relayer-fields"].disabled = false;
+  elements["custody-fields"].disabled = false;
+  elements["admin-fields"].disabled = !isAdmin;
   setRelayerMessage("Wallet ready. Load a signed attestation to validate it locally.", "success");
+  setCustodyMessage(
+    isCustodian
+      ? "Wallet is authorized for custody. Load a record to see available actions."
+      : "This wallet can inspect custody but cannot send or receive transfers.",
+    isCustodian ? "success" : "error",
+  );
+  setAdminMessage(
+    isAdmin
+      ? "Administrator access confirmed."
+      : "This wallet does not have the registry administrator role.",
+    isAdmin ? "success" : "error",
+  );
   setRegistrationMessage(
     isLab && isCustodian
       ? "Wallet ready. The registration transaction will require gas."
@@ -455,6 +508,8 @@ elements["connect-wallet"].addEventListener("click", async () => {
     const message = readableError(error);
     setRegistrationMessage(message, "error");
     setRelayerMessage(message, "error");
+    setCustodyMessage(message, "error");
+    setAdminMessage(message, "error");
   } finally {
     elements["connect-wallet"].disabled = false;
   }
@@ -611,6 +666,276 @@ elements["relayer-form"].addEventListener("submit", async (event) => {
     elements["relay-button"].disabled = false;
   }
 });
+
+async function loadCustodyRecord(recordId = elements["custody-record-id"].value.trim()) {
+  if (!/^\d+$/.test(String(recordId)) || BigInt(recordId) < 1n) {
+    throw new Error("Enter a positive diamond record ID.");
+  }
+
+  const id = BigInt(recordId);
+  const [diamond, pendingRecipient] = await Promise.all([
+    registry.getDiamond(id),
+    registry.pendingTo(id),
+  ]);
+  loadedCustodyId = id;
+  elements["custody-record-id"].value = id.toString();
+  elements["custody-status"].textContent = STATUSES[Number(diamond.status)];
+  elements["custody-current"].textContent = diamond.custodian;
+  elements["custody-pending"].textContent = pendingRecipient === ZeroAddress
+    ? "No pending proposal"
+    : pendingRecipient;
+  elements["custody-record"].hidden = false;
+
+  const active = Number(diamond.status) === 0;
+  const hasProposal = pendingRecipient !== ZeroAddress;
+  const isCurrentCustodian = diamond.custodian.toLowerCase() === walletAddress.toLowerCase();
+  const isPendingRecipient = hasProposal
+    && pendingRecipient.toLowerCase() === walletAddress.toLowerCase();
+
+  elements["proposal-form"].hidden = !(
+    active && isCurrentCustodian && walletIsCustodian && !hasProposal
+  );
+  elements["cancel-transfer-button"].hidden = !(isCurrentCustodian && hasProposal);
+  elements["accept-transfer-button"].hidden = !(
+    active && isPendingRecipient && walletIsCustodian
+  );
+  elements["reject-transfer-button"].hidden = !isPendingRecipient;
+
+  if (!active) {
+    setCustodyMessage(`Record #${id} is ${STATUSES[Number(diamond.status)].toLowerCase()}, so transfers are frozen.`);
+  } else if (isPendingRecipient) {
+    setCustodyMessage("This wallet is the proposed recipient. Accept to take custody or reject to decline.");
+  } else if (isCurrentCustodian && hasProposal) {
+    setCustodyMessage("A transfer is awaiting the recipient. You may cancel it before acceptance.");
+  } else if (isCurrentCustodian && walletIsCustodian) {
+    setCustodyMessage("This wallet holds the diamond and may propose a transfer.", "success");
+  } else {
+    setCustodyMessage("This wallet has no action for the current custody state.");
+  }
+}
+
+async function runCustodyTransaction(pendingMessage, transactionFactory) {
+  const actionButtons = [
+    "load-custody-button", "propose-transfer-button", "cancel-transfer-button",
+    "reject-transfer-button", "accept-transfer-button",
+  ].map((id) => elements[id]);
+  actionButtons.forEach((button) => { button.disabled = true; });
+  try {
+    setCustodyMessage(`${pendingMessage} Confirm it in your wallet…`);
+    const transaction = await transactionFactory();
+    setCustodyMessage(`Transaction ${shortenAddress(transaction.hash)} submitted. Waiting for confirmation…`);
+    await transaction.wait();
+    await loadCustodyRecord(loadedCustodyId);
+    setCustodyMessage("Custody state updated from the blockchain.", "success");
+  } catch (error) {
+    setCustodyMessage(readableError(error), "error");
+  } finally {
+    actionButtons.forEach((button) => { button.disabled = false; });
+  }
+}
+
+elements["custody-load-form"].addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!walletRegistry || !walletAddress) {
+    setCustodyMessage("Connect a wallet first.", "error");
+    return;
+  }
+
+  elements["load-custody-button"].disabled = true;
+  elements["custody-record"].hidden = true;
+  try {
+    setCustodyMessage("Reading the current custody state…");
+    await loadCustodyRecord();
+  } catch (error) {
+    loadedCustodyId = undefined;
+    setCustodyMessage(readableError(error), "error");
+  } finally {
+    elements["load-custody-button"].disabled = false;
+  }
+});
+
+elements["proposal-form"].addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const recipientInput = elements["custody-recipient"].value.trim();
+  if (!isAddress(recipientInput)) {
+    setCustodyMessage("Enter a valid recipient address.", "error");
+    return;
+  }
+  const recipient = getAddress(recipientInput);
+  if (recipient === walletAddress) {
+    setCustodyMessage("The recipient must be a different wallet.", "error");
+    return;
+  }
+  if (!await registry.hasRole(CUSTODIAN_ROLE, recipient)) {
+    setCustodyMessage("The recipient does not have CUSTODIAN_ROLE.", "error");
+    return;
+  }
+  await runCustodyTransaction(
+    "Proposing the transfer.",
+    () => walletRegistry.proposeTransfer(loadedCustodyId, recipient),
+  );
+});
+
+elements["cancel-transfer-button"].addEventListener("click", () => runCustodyTransaction(
+  "Cancelling the transfer proposal.",
+  () => walletRegistry.cancelTransfer(loadedCustodyId),
+));
+
+elements["reject-transfer-button"].addEventListener("click", () => runCustodyTransaction(
+  "Rejecting the transfer proposal.",
+  () => walletRegistry.rejectTransfer(loadedCustodyId),
+));
+
+elements["accept-transfer-button"].addEventListener("click", () => runCustodyTransaction(
+  "Accepting custody.",
+  () => walletRegistry.acceptTransfer(loadedCustodyId),
+));
+
+function selectedRole() {
+  return elements["role-type"].value === "lab" ? LAB_ROLE : CUSTODIAN_ROLE;
+}
+
+function selectedRoleLabel() {
+  return elements["role-type"].value === "lab" ? "Laboratory" : "Custodian";
+}
+
+async function runRoleTransaction(grant) {
+  if (!walletRegistry || !walletIsAdmin) {
+    setRoleMessage("Connect an administrator wallet first.", "error");
+    return;
+  }
+  const addressInput = elements["role-address"].value.trim();
+  if (!isAddress(addressInput)) {
+    setRoleMessage("Enter a valid wallet address.", "error");
+    return;
+  }
+
+  const account = getAddress(addressInput);
+  const role = selectedRole();
+  const label = selectedRoleLabel();
+  elements["grant-role-button"].disabled = true;
+  elements["revoke-role-button"].disabled = true;
+  try {
+    const alreadyHasRole = await registry.hasRole(role, account);
+    if (grant && alreadyHasRole) throw new Error(`This wallet already has the ${label} role.`);
+    if (!grant && !alreadyHasRole) throw new Error(`This wallet does not have the ${label} role.`);
+
+    setRoleMessage(`${grant ? "Granting" : "Revoking"} the ${label} role. Confirm in your wallet…`);
+    const transaction = grant
+      ? await walletRegistry.grantRole(role, account)
+      : await walletRegistry.revokeRole(role, account);
+    setRoleMessage(`Transaction ${shortenAddress(transaction.hash)} submitted. Waiting for confirmation…`);
+    await transaction.wait();
+    const suffix = grant && role === LAB_ROLE
+      ? " A lab also needs the Custodian role before it can register diamonds."
+      : "";
+    setRoleMessage(`${label} role ${grant ? "granted" : "revoked"}.${suffix}`, "success");
+  } catch (error) {
+    setRoleMessage(readableError(error), "error");
+  } finally {
+    elements["grant-role-button"].disabled = false;
+    elements["revoke-role-button"].disabled = false;
+  }
+}
+
+elements["role-form"].addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await runRoleTransaction(true);
+});
+
+elements["revoke-role-button"].addEventListener("click", () => runRoleTransaction(false));
+
+async function loadAdminRecord(recordId = elements["admin-record-id"].value.trim()) {
+  if (!/^\d+$/.test(String(recordId)) || BigInt(recordId) < 1n) {
+    throw new Error("Enter a positive diamond record ID.");
+  }
+  const id = BigInt(recordId);
+  const diamond = await registry.getDiamond(id);
+  const status = Number(diamond.status);
+  loadedAdminRecordId = id;
+  elements["admin-record-id"].value = id.toString();
+  elements["admin-record-status"].textContent = STATUSES[status];
+  elements["admin-record-lab"].textContent = diamond.lab;
+  elements["admin-record-summary"].hidden = false;
+  elements["quarantine-button"].hidden = status !== 0;
+  elements["resolve-button"].hidden = status !== 1;
+  elements["revoke-record-button"].hidden = status !== 1;
+
+  if (status === 0) {
+    setAdminRecordMessage("The record is active. An admin may quarantine it with a reason.");
+  } else if (status === 1) {
+    setAdminRecordMessage("The record is quarantined. Resolve it or revoke it permanently.");
+  } else {
+    setAdminRecordMessage("This record is permanently revoked. No further status change is allowed.");
+  }
+}
+
+elements["admin-record-form"].addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!walletRegistry || !walletIsAdmin) {
+    setAdminRecordMessage("Connect an administrator wallet first.", "error");
+    return;
+  }
+  elements["load-admin-record-button"].disabled = true;
+  elements["admin-record-summary"].hidden = true;
+  try {
+    setAdminRecordMessage("Reading the record status…");
+    await loadAdminRecord();
+  } catch (error) {
+    loadedAdminRecordId = undefined;
+    setAdminRecordMessage(readableError(error), "error");
+  } finally {
+    elements["load-admin-record-button"].disabled = false;
+  }
+});
+
+async function runAdminRecordTransaction(action) {
+  if (!walletRegistry || !walletIsAdmin || !loadedAdminRecordId) {
+    setAdminRecordMessage("Load a record with an administrator wallet first.", "error");
+    return;
+  }
+  const reason = elements["admin-reason"].value.trim();
+  if (!reason) {
+    setAdminRecordMessage("Enter a reason for the status change.", "error");
+    return;
+  }
+
+  const actions = {
+    quarantine: {
+      pending: "Quarantining the record.",
+      send: () => walletRegistry.quarantine(loadedAdminRecordId, reason),
+    },
+    resolve: {
+      pending: "Resolving the quarantine.",
+      send: () => walletRegistry.resolveQuarantine(loadedAdminRecordId, reason),
+    },
+    revoke: {
+      pending: "Permanently revoking the record.",
+      send: () => walletRegistry.revokeRecord(loadedAdminRecordId, reason),
+    },
+  };
+  const selected = actions[action];
+  const buttons = ["load-admin-record-button", "quarantine-button", "resolve-button", "revoke-record-button"]
+    .map((id) => elements[id]);
+  buttons.forEach((button) => { button.disabled = true; });
+  try {
+    setAdminRecordMessage(`${selected.pending} Confirm in your wallet…`);
+    const transaction = await selected.send();
+    setAdminRecordMessage(`Transaction ${shortenAddress(transaction.hash)} submitted. Waiting for confirmation…`);
+    await transaction.wait();
+    elements["admin-reason"].value = "";
+    await loadAdminRecord(loadedAdminRecordId);
+    setAdminRecordMessage("Record status updated from the blockchain.", "success");
+  } catch (error) {
+    setAdminRecordMessage(readableError(error), "error");
+  } finally {
+    buttons.forEach((button) => { button.disabled = false; });
+  }
+}
+
+elements["quarantine-button"].addEventListener("click", () => runAdminRecordTransaction("quarantine"));
+elements["resolve-button"].addEventListener("click", () => runAdminRecordTransaction("resolve"));
+elements["revoke-record-button"].addEventListener("click", () => runAdminRecordTransaction("revoke"));
 
 elements["inscription-id"].addEventListener("blur", (event) => {
   event.target.value = normalizeInscription(event.target.value);

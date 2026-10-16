@@ -760,7 +760,7 @@ These behaviors are now covered by the Hardhat suite in `test/DiamondRegistry.te
 
 ## 15. Resume Summary
 
-> Built and locally tested a role-based diamond provenance registry using Solidity, OpenZeppelin, Hardhat, and ethers.js. The 41-test suite covers lab-only registration, EIP-712 signed attestations, replay and expiry protection, immutable provenance, consent-based custody transfers, access control, and quarantine/revocation. Deployment manifests, ABI export, local demo seeding, public verification, MetaMask connection, report hashing, direct lab registration, attestation export, and relayer submission are implemented. Custody and admin panels and the Sepolia deployment remain.
+> Built and locally tested a role-based diamond provenance registry using Solidity, OpenZeppelin, Hardhat, and ethers.js. The 41-test suite covers lab-only registration, EIP-712 signed attestations, replay and expiry protection, immutable provenance, consent-based custody transfers, access control, and quarantine/revocation. Deployment manifests, ABI export, local demo seeding, public verification, MetaMask connection, report hashing, direct lab registration, attestation export, relayer submission, custody, and admin workspaces are implemented. Sepolia deployment remains.
 
 ## 16. Suggested Repository Structure
 
