@@ -175,7 +175,7 @@ The deployment assigned the configured roles and wrote the local manifest.
 
 ### MetaMask wallet connection
 
-The Arc browser connected MetaMask Account 0 to the DApp on the localhost network. The page displays the full connected address.
+The Chrome browser connected MetaMask Account 0 to the DApp on the localhost network. The page displays the full connected address.
 
 ![MetaMask connected to Facet Ledger in Arc](docs/screenshots/metamask-wallet-connection.png)
 
